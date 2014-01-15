@@ -3,10 +3,10 @@
 %%
 %% Redistribution and use in source and binary forms, with or without
 %% modification, are permitted provided that the following conditions
-%% are met: 
+%% are met:
 %%
 %% 1. Redistributions of source code must retain the above copyright
-%%    notice, this list of conditions and the following disclaimer. 
+%%    notice, this list of conditions and the following disclaimer.
 %% 2. Redistributions in binary form must reproduce the above
 %%    copyright notice, this list of conditions and the following
 %%    disclaimer in the documentation and/or other materials provided
@@ -184,14 +184,8 @@ decode_members(Content) ->
 	    {Name, Rest2} = match_element([name], Member#xmlElement.content),
 	    TextValue = get_text_value(Name#xmlElement.content),
 	    {Value, _} = match_element([value], Rest2),
-	    [{decode_member_name(TextValue),
+	    [{TextValue,
 	      decode(Value#xmlElement.content)}|decode_members(Rest)]
-    end.
-
-%% If the member name does not exist as an atom we keep it as a list
-decode_member_name(L) when is_list(L) ->
-    try list_to_existing_atom(L)
-    catch error:badarg -> L
     end.
 
 decode_values([]) -> [];
