@@ -305,7 +305,7 @@ send(Socket, URI, Header, Payload) ->
     send(Socket, Request).
 
 parse_response(Socket, Timeout) ->
-    %setopts(Socket, [{packet, line}]),
+    setopts(Socket, [{packet, line}]),
     case recv(Socket, 1000, Timeout) of
 	{ok, "HTTP/1.1 200 OK\r\n"} -> parse_header(Socket, Timeout);
 	{ok, StatusLine} -> {error, StatusLine};
@@ -502,6 +502,7 @@ setopts(Socket, Opts) ->
     setopts(get(proto), Socket, Opts).
 
 setopts(?SSL, Socket, Opts) -> ssl:setopts(Socket, Opts);
+setopts(?UDS, Socket, Opts) -> ignore;
 setopts(_,    Socket, Opts) -> inet:setopts(Socket, Opts).
 
 
