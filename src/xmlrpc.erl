@@ -1,4 +1,4 @@
-%% Copyright (C) 2003 Joakim Grebenö <jocke@tail-f.com>.
+%% Copyright (C) 2003 Joakim GrebenÃ¶ <jocke@tail-f.com>.
 %% All rights reserved.
 %%
 %% Redistribution and use in source and binary forms, with or without
@@ -24,9 +24,9 @@
 %% NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 %% SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-%% @author Joakim Grebenö <jocke@tail-f.com>
-%% @author Torbjörn Törnkvist <etnt@redhoterlang.com>
-%% @copyright 2003 Joakim Grebenö
+%% @author Joakim GrebenÃ¶ <jocke@tail-f.com>
+%% @author TorbjÃ¶rn TÃ¶rnkvist <etnt@redhoterlang.com>
+%% @copyright 2003 Joakim GrebenÃ¶
 
 %% TODO: Document the callback state functions
 %% TODO: SOAP
@@ -124,6 +124,11 @@ cbs_opaque(#cback_state{}=C, Opaque) ->
 %%%
 -define(SSL, ssl).
 
+%%%
+%%% Quick and dirty solution for adding UDS support.
+%%%
+-define(UDS, uds).
+
 -spec ssl_call(Socket, URI, Payload) -> call_result()
  when Socket :: socket(),
       URI :: uri(),
@@ -179,7 +184,6 @@ ssl_call(Host, Port, URI, Payload, KeepAlive, Timeout) ->
     call(Host, Port, URI, Payload, KeepAlive, Timeout).
 
 
-
 %% Exported: call/{3,4,5,6}
 
 -spec call(Host, Port, URI, Payload) -> call_result()
@@ -228,6 +232,12 @@ call(Host, Port, URI, Payload, KeepAlive, Timeout) ->
       Payload :: {call, Method::atom(), Arguments::[xmlrpc_value()]}.
 
 %% @equiv call(Socket, URI, Payload, false, 60000)
+
+call(Path, URI, Payload) when is_list(Path) ->
+    put(proto, ?UDS),
+    {ok, Socket} = connect(Path),
+    call(Socket, URI, Payload);
+
 
 call(Socket, URI, Payload) ->
     call(Socket, URI, Payload, false, 60000).
@@ -295,8 +305,8 @@ send(Socket, URI, Header, Payload) ->
     send(Socket, Request).
 
 parse_response(Socket, Timeout) ->
-    setopts(Socket, [{packet, line}]),
-    case recv(Socket, 0, Timeout) of
+    %setopts(Socket, [{packet, line}]),
+    case recv(Socket, 1000, Timeout) of
 	{ok, "HTTP/1.1 200 OK\r\n"} -> parse_header(Socket, Timeout);
 	{ok, StatusLine} -> {error, StatusLine};
 	{error, Reason} -> {error, Reason}
@@ -445,11 +455,21 @@ connect(Host, Port, Opts) ->
 connect(?SSL, Host, Port, Opts) -> ssl:connect(Host, Port, Opts);
 connect(_,    Host, Port, Opts) -> gen_tcp:connect(Host, Port, Opts).
 
+connect(Path) when is_list(Path) ->
+    connect(list_to_binary(Path));
+
+connect(Path) when is_binary(Path) ->
+    {ok, Socket} = procket:socket(1,1,0),
+    Length = byte_size(Path),
+    ok = procket:connect(Socket, <<(procket:sockaddr_common(1,Length))/binary, Path/binary, 0:((procket:unix_path_max()-Length)*8)>>),
+    {ok, Socket}.
+
 
 close(Socket) ->
     close(get(proto), Socket).
 
 close(?SSL, Socket) -> ssl:close(Socket);
+close(?UDS, Socket) -> procket:close(Socket);
 close(_   , Socket) -> gen_tcp:close(Socket).
 
 
@@ -457,6 +477,7 @@ send(Socket, Request) ->
     send(get(proto), Socket, Request).
 
 send(?SSL, Socket, Request) -> ssl:send(Socket, Request);
+send(?UDS, Socket, Request) -> procket:sendto(Socket, list_to_binary(Request));
 send(_   , Socket, Request) -> gen_tcp:send(Socket, Request).
 
 
@@ -464,6 +485,15 @@ recv(Socket, Length, Timeout) ->
     recv(get(proto), Socket, Length, Timeout).
 
 recv(?SSL, Socket, Length, Timeout) -> ssl:recv(Socket, Length, Timeout);
+recv(?UDS, _Socket, _Length, 0) ->
+    {error, eagain};
+recv(?UDS, Socket, Length, Timeout) ->
+    Now = now(),
+    case procket:recvfrom(Socket, Length) of
+        {ok, Response} -> binary_to_list(Response);
+        {error, eagain} -> recv(?UDS, Socket, Length, Timeout - timer:now_diff(now(),Now)/1000);
+        {error, Reason} -> {error, Reason}
+    end;
 recv(_   , Socket, Length, Timeout) -> gen_tcp:recv(Socket, Length, Timeout).
 
 
