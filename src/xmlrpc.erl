@@ -226,7 +226,12 @@ call(Host, Port, URI, Payload, KeepAlive, Timeout) ->
 	{error, Reason} -> {error, undefined, Reason}
     end.
 
--spec call(Socket, URI, Payload) -> call_result()
+-spec call(Path, URI, Payload) -> call_result()
+ when Path :: list(),
+      URI :: uri(),
+      Payload :: {call, Method::atom(), Arguments::[xmlrpc_value()]}
+;
+          (Socket, URI, Payload) -> call_result()
  when Socket :: socket(),
       URI :: uri(),
       Payload :: {call, Method::atom(), Arguments::[xmlrpc_value()]}.
@@ -237,7 +242,6 @@ call(Path, URI, Payload) when is_list(Path) ->
     put(proto, ?UDS),
     {ok, Socket} = connect(Path),
     call(Socket, URI, Payload);
-
 
 call(Socket, URI, Payload) ->
     call(Socket, URI, Payload, false, 60000).
@@ -502,7 +506,7 @@ setopts(Socket, Opts) ->
     setopts(get(proto), Socket, Opts).
 
 setopts(?SSL, Socket, Opts) -> ssl:setopts(Socket, Opts);
-setopts(?UDS, Socket, Opts) -> ignore;
+setopts(?UDS, _Socket, _Opts) -> ignore;
 setopts(_,    Socket, Opts) -> inet:setopts(Socket, Opts).
 
 
