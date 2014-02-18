@@ -195,6 +195,7 @@ ssl_call(Host, Port, URI, Payload, KeepAlive, Timeout) ->
 %% @equiv call(Host, Port, URI, Payload, false, 60000)
 
 call(Host, Port, URI, Payload) ->
+    erase(proto),
     call(Host, Port, URI, Payload, false, 60000).
 
 -spec call(Host, Port, URI, Payload, KeepAlive, Timeout) -> call_result()
@@ -264,6 +265,8 @@ call(Socket, URI, Payload, KeepAlive, Timeout) ->
 	    case send(Socket, URI, KeepAlive, EncodedPayload) of
 		ok ->
 		    case parse_response(Socket, Timeout) of
+      {ready, {ok, Response}} ->
+          {ok, Response};
 			{ok, Header} ->
 			    handle_payload(Socket, KeepAlive, Timeout, Header);
 			{error, Reason} when KeepAlive == false ->
@@ -310,11 +313,28 @@ send(Socket, URI, Header, Payload) ->
 
 parse_response(Socket, Timeout) ->
     setopts(Socket, [{packet, line}]),
-    case recv(Socket, 1000, Timeout) of
+    case recv(Socket, 100000, Timeout) of
 	{ok, "HTTP/1.1 200 OK\r\n"} -> parse_header(Socket, Timeout);
+  {ok, "HTTP/1.1 200 OK\r\n" ++ Rest} -> parse_packet(Socket, Rest);
 	{ok, StatusLine} -> {error, StatusLine};
 	{error, Reason} -> {error, Reason}
     end.
+
+parse_packet(Socket, Packet) ->
+  [Header,Payload] = re:split(Packet,"\r\n\r\n",[{parts,2},{return,list}]),
+  Headers = re:split(Header,"\r\n",[{return,list}]),
+  ["content-length: " ++ Length_s] = lists:filter(fun ("content-length: " ++ _) -> true; (_) -> false end, Headers),
+  {Length,[]} = string:to_integer(Length_s),
+  Shit = collect_shit(Socket, Payload, string:len(Payload), Length),
+  {ready, xmlrpc_decode:payload(Shit)}.
+  
+collect_shit(_Socket, Packet, Length, Needed) when Length =:= Needed ->
+  Packet;
+collect_shit(Socket, Packet, Length, Needed) when Length < Needed ->
+  {ok, Some} = recv(Socket, Needed - Length, 3000),
+  collect_shit(Socket, Packet ++ Some, Length + string:len(Some), Needed).
+
+
 
 parse_header(Socket, Timeout) -> parse_header(Socket, Timeout, #header{}).
 
@@ -489,13 +509,13 @@ recv(Socket, Length, Timeout) ->
     recv(get(proto), Socket, Length, Timeout).
 
 recv(?SSL, Socket, Length, Timeout) -> ssl:recv(Socket, Length, Timeout);
-recv(?UDS, _Socket, _Length, 0) ->
+recv(?UDS, _Socket, _Length, Timeout) when Timeout < 0 ->
     {error, eagain};
 recv(?UDS, Socket, Length, Timeout) ->
     Now = now(),
     case procket:recvfrom(Socket, Length) of
-        {ok, Response} -> binary_to_list(Response);
-        {error, eagain} -> recv(?UDS, Socket, Length, Timeout - timer:now_diff(now(),Now)/1000);
+        {ok, Response} -> {ok, binary_to_list(Response)};
+        {error, eagain} -> recv(?UDS, Socket, Length, Timeout - timer:now_diff(now(),Now));
         {error, Reason} -> {error, Reason}
     end;
 recv(_   , Socket, Length, Timeout) -> gen_tcp:recv(Socket, Length, Timeout).
