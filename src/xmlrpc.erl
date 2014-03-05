@@ -325,7 +325,7 @@ parse_packet(Socket, Packet) ->
   Headers = re:split(Header,"\r\n",[{return,list}]),
   ["content-length: " ++ Length_s] = lists:filter(fun ("content-length: " ++ _) -> true; (_) -> false end, Headers),
   {Length,[]} = string:to_integer(Length_s),
-  case collect_shit(Socket, Payload, string:len(Payload), Length) of
+  case collect_packet(Socket, Payload, string:len(Payload), Length) of
     {ok, Shit} ->
       {ready, xmlrpc_decode:payload(Shit)};
     {error, Reason} ->
@@ -333,13 +333,13 @@ parse_packet(Socket, Packet) ->
   end.
 
   
-collect_shit(_Socket, Packet, Length, Needed) when Length =:= Needed ->
+collect_packet(_Socket, Packet, Length, Needed) when Length =:= Needed ->
   {ok, Packet};
 
-collect_shit(Socket, Packet, Length, Needed) when Length < Needed ->
+collect_packet(Socket, Packet, Length, Needed) when Length < Needed ->
   case recv(Socket, Needed - Length, 3000) of
     {ok, Some} ->
-      collect_shit(Socket, Packet ++ Some, Length + string:len(Some), Needed);
+      collect_packet(Socket, Packet ++ Some, Length + string:len(Some), Needed);
     {error, Reason} ->
       {error, Reason};
     Whatever ->
