@@ -266,6 +266,7 @@ call(Socket, URI, Payload, KeepAlive, Timeout) ->
 		ok ->
 		    case parse_response(Socket, Timeout) of
       {ready, {ok, Response}} ->
+          close(Socket),
           {ok, Response};
 			{ok, Header} ->
 			    handle_payload(Socket, KeepAlive, Timeout, Header);
