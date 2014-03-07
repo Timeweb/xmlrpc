@@ -260,31 +260,31 @@ call(Socket, URI, Payload) ->
 call(Socket, URI, Payload, KeepAlive, Timeout) ->
     ?DEBUG_LOG({decoded_call, Payload}),
     case xmlrpc_encode:payload(Payload) of
-	{ok, EncodedPayload} ->
-	    ?DEBUG_LOG({encoded_call, EncodedPayload}),
-	    case send(Socket, URI, KeepAlive, EncodedPayload) of
-		ok ->
-		    case parse_response(Socket, Timeout) of
-      {ready, {ok, Response}} ->
-          close(Socket),
-          {ok, Response};
-			{ok, Header} ->
-			    handle_payload(Socket, KeepAlive, Timeout, Header);
-			{error, Reason} when KeepAlive == false ->
-			    close(Socket),
-			    {error, Reason};
-			{error, Reason} -> {error, Socket, Reason}
-		    end;
-		{error, Reason} when KeepAlive == false ->
-		    close(Socket),
-		    {error, Reason};
-		{error, Reason} ->
-		    {error, Socket, Reason}
-	    end;
-	{error, Reason} when KeepAlive == false ->
-	    close(Socket),
-	    {error, Reason};
-	{error, Reason} -> {error, Socket, Reason}
+    	{ok, EncodedPayload} ->
+  	    ?DEBUG_LOG({encoded_call, EncodedPayload}),
+  	    case send(Socket, URI, KeepAlive, EncodedPayload) of
+      		ok ->
+    		    case parse_response(Socket, Timeout) of
+              {ready, {ok, Response}} ->
+                close(Socket),
+                {ok, Response};
+        			{ok, Header} ->
+      			    handle_payload(Socket, KeepAlive, Timeout, Header);
+        			{error, Reason} when KeepAlive == false ->
+      			    close(Socket),
+      			    {error, Reason};
+        			{error, Reason} -> {error, Socket, Reason}
+    		    end;
+      		{error, Reason} when KeepAlive == false ->
+      		    close(Socket),
+      		    {error, Reason};
+      		{error, Reason} ->
+      		    {error, Socket, Reason}
+  	    end;
+    	{error, Reason} when KeepAlive == false ->
+    	    close(Socket),
+    	    {error, Reason};
+    	{error, Reason} -> {error, Socket, Reason}
     end.
 
 send(Socket, URI, false, Payload) ->
@@ -324,7 +324,8 @@ parse_response(Socket, Timeout) ->
 parse_packet(Socket, Packet) ->
   [Header,Payload] = re:split(Packet,"\r\n\r\n",[{parts,2},{return,list}]),
   Headers = re:split(Header,"\r\n",[{return,list}]),
-  ["content-length: " ++ Length_s] = lists:filter(fun ("content-length: " ++ _) -> true; (_) -> false end, Headers),
+  Length_h = lists:filter(fun ("content-length: " ++ _) -> true; ("Content-Length: " ++ _) -> true; (_) -> false end, Headers),
+  Length_s = string:substr(Length_h, 17),
   {Length,[]} = string:to_integer(Length_s),
   case collect_packet(Socket, Payload, string:len(Payload), Length) of
     {ok, Shit} ->
