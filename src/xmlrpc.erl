@@ -324,7 +324,7 @@ parse_response(Socket, Timeout) ->
 parse_packet(Socket, Packet) ->
   [Header,Payload] = re:split(Packet,"\r\n\r\n",[{parts,2},{return,list}]),
   Headers = re:split(Header,"\r\n",[{return,list}]),
-  Length_h = lists:filter(fun ("content-length: " ++ _) -> true; ("Content-Length: " ++ _) -> true; (_) -> false end, Headers),
+  [Length_h] = lists:filter(fun ("content-length: " ++ _) -> true; ("Content-Length: " ++ _) -> true; (_) -> false end, Headers),
   Length_s = string:substr(Length_h, 17),
   {Length,[]} = string:to_integer(Length_s),
   case collect_packet(Socket, Payload, string:len(Payload), Length) of
